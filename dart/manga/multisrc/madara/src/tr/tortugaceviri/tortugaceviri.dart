@@ -9,7 +9,7 @@ Source _tortugaceviriSource = Source(
 
   typeSource: "madara",
   iconUrl:
-      "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/manga/multisrc/madara/src/tr/tortugaceviri/icon.png",
+      "https://raw.githubusercontent.com/kashrtx/yomi-extensions/$branchName/dart/manga/multisrc/madara/src/tr/tortugaceviri/icon.png",
   dateFormat: "MMMM d, yyyy",
   dateFormatLocale: "tr",
 );

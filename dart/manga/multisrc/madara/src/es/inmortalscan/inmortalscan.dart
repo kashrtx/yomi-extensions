@@ -9,7 +9,7 @@ Source _inmortalscanSource = Source(
 
   typeSource: "madara",
   iconUrl:
-      "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/manga/multisrc/madara/src/es/inmortalscan/icon.png",
+      "https://raw.githubusercontent.com/kashrtx/yomi-extensions/$branchName/dart/manga/multisrc/madara/src/es/inmortalscan/icon.png",
   dateFormat: "MMMM d, yyyy",
   dateFormatLocale: "es",
 );

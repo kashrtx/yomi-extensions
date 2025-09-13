@@ -9,5 +9,5 @@ Source _sflixSource = Source(
   typeSource: "dopeflix",
   itemType: ItemType.anime,
   iconUrl:
-      "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/anime/multisrc/dopeflix/src/sflix/icon.png",
+      "https://raw.githubusercontent.com/kashrtx/yomi-extensions/$branchName/dart/anime/multisrc/dopeflix/src/sflix/icon.png",
 );

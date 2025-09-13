@@ -4,7 +4,7 @@ const mangayomiSources = [{
   "baseUrl": "https://www.novelupdates.com",
   "apiUrl": "",
   "iconUrl":
-    "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/main/javascript/icon/en.novelupdates.png",
+    "https://raw.githubusercontent.com/kashrtx/yomi-extensions/main/javascript/icon/en.novelupdates.png",
   "typeSource": "single",
   "itemType": 2,
   "version": "0.0.4",

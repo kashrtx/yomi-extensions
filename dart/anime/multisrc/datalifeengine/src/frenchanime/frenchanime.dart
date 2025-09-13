@@ -9,5 +9,5 @@ Source _frenchanimeSource = Source(
   typeSource: "datalifeengine",
   itemType: ItemType.anime,
   iconUrl:
-      "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/anime/multisrc/datalifeengine/src/frenchanime/icon.png",
+      "https://raw.githubusercontent.com/kashrtx/yomi-extensions/$branchName/dart/anime/multisrc/datalifeengine/src/frenchanime/icon.png",
 );

@@ -9,5 +9,5 @@ Source _dopeboxSource = Source(
   typeSource: "dopeflix",
   itemType: ItemType.anime,
   iconUrl:
-      "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/anime/multisrc/dopeflix/src/dopebox/icon.png",
+      "https://raw.githubusercontent.com/kashrtx/yomi-extensions/$branchName/dart/anime/multisrc/dopeflix/src/dopebox/icon.png",
 );

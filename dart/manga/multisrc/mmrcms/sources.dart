@@ -5,7 +5,7 @@ import 'src/en/readcomicsonline/readcomicsonline.dart';
 
 const mmrcmsVersion = "0.0.8";
 const mmrcmsSourceCodeUrl =
-    "https://raw.githubusercontent.com/m2k3a/mangayomi-extensions/$branchName/dart/manga/multisrc/mmrcms/mmrcms.dart";
+    "https://raw.githubusercontent.com/kashrtx/yomi-extensions/$branchName/dart/manga/multisrc/mmrcms/mmrcms.dart";
 
 List<Source> get mmrcmsSourcesList => _mmrcmsSourcesList;
 List<Source> _mmrcmsSourcesList =

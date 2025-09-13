@@ -116,6 +116,6 @@ class Source {
   }
 }
 
-const branchName = "main";
+const branchName = "/tree/main";
 
 enum ItemType { manga, anime, novel }

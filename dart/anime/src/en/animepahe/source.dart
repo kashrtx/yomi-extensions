@@ -1,13 +1,13 @@
 import '../../../../../model/source.dart';
 
 Source get animepaheSource => _animepaheSource;
-const _animepaheVersion = "0.0.81";
+const _animepaheVersion = "0.0.82";
 const _animepaheSourceCodeUrl =
     "https://raw.githubusercontent.com/kashrtx/yomi-extensions/$branchName/dart/anime/src/en/animepahe/animepahe.dart";
 Source _animepaheSource = Source(
   name: "AnimePahe",
   //baseUrl: "https://www.animepahe.ru",
-  baseUrl: "https://animepahe.si", // new domain as of September 10, 2025
+  baseUrl: "https://animepahe.pw", // new domain as of April 9, 2026
   lang: "en",
   typeSource: "single",
   iconUrl:

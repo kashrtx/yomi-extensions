@@ -376,10 +376,10 @@ class AnimePahe extends MProvider {
         title: "Preferred domain",
         summary: "",
         valueIndex: 1,
-        entries: ["animepahe.com", "animepahe.si", "animepahe.org", "animepahe.ru"],
+        entries: ["animepahe.com", "animepahe.pw", "animepahe.org", "animepahe.ru"],
         entryValues: [
           "https://animepahe.com",
-          "https://animepahe.si", // new domain as of September 10, 2025
+          "https://animepahe.pw", // new domain as of April 9, 2026
           "https://animepahe.org",
           "https://www.animepahe.ru", // old domain, keep as fallback
         ],

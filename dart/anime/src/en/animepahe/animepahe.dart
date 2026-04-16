@@ -259,7 +259,7 @@ class AnimePahe extends MProvider {
       } else {
         final ress = (await client.get(
           Uri.parse(kwikLink),
-          headers: {"Referer": "https://animepahe.com"},
+          headers: {"Referer": "$baseUrl/"},
         ));
         final script = substringAfterLast(
           xpath(
@@ -268,13 +268,20 @@ class AnimePahe extends MProvider {
           ).first,
           "eval(function(",
         );
-        final videoUrl = substringBefore(
-          substringAfter(
-            unpackJsAndCombine("eval(function($script"),
-            "const source=\\'",
-          ),
-          "\\';",
-        );
+        final unpackedScript = unpackJsAndCombine("eval(function($script");
+        final sourceMatch = RegExp(
+          r"const\s+source\s*=\s*(?:'([^']+)'|\\'([^\\]+)\\')",
+        ).firstMatch(unpackedScript);
+        final videoUrl =
+            sourceMatch?.group(1) ??
+            sourceMatch?.group(2) ??
+            substringBefore(
+              substringAfter(unpackedScript, "const source=\\'"),
+              "\\';",
+            );
+        if (videoUrl.isEmpty) {
+          continue;
+        }
         MVideo video = MVideo();
         video
           ..url = videoUrl

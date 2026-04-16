@@ -7,7 +7,7 @@ const mangayomiSources = [{
     "typeSource": "torrent",
     "isManga": false,
     "itemType": 1,
-    "version": "0.0.2",
+    "version": "0.0.3",
     "pkgPath": "anime/src/all/torrentioanime.js"
 }];
 
@@ -245,21 +245,30 @@ class DefaultExtension extends MProvider {
         anime.episodes = (() => {
             switch (episodeList.meta?.type) {
                 case "series": {
-                    const videos = episodeList.meta.videos;
+                    const videos = episodeList.meta.videos || [];
                     return videos
                         .filter(video => video.thumbnail !== null && ((video.released ? new Date(video.released) : Date.now()) < Date.now()))
                         .map(video => {
                             const releaseDate = video.released ? new Date(video.released) : Date.now();
+                            const season = parseInt(video.season, 10) || 1;
+                            const episodeNumber = parseInt(video.number ?? video.episode, 10) || 0;
+                            const cleanedTitle = (video.title || "")
+                                .replace(/^Episode /, "")
+                                .replace(/^\d+\s*/, "")
+                                .trim();
+
                             return {
                                 url: `/stream/series/${video.id}.json`,
                                 dateUpload: releaseDate.valueOf().toString(),
-                                name: `Episode ${video.episode} : ${video.title
-                                    ?.replace(/^Episode /, "")
-                                    ?.replace(/^\d+\s*/, "")
-                                    ?.trim()}`,
+                                name: `S${season}E${episodeNumber} - ${cleanedTitle || `Episode ${episodeNumber}`}`,
+                                episodeNumber,
+                                season,
                             };
                         })
-                        .reverse();
+                        .sort((a, b) => {
+                            return a.season - b.season || a.episodeNumber - b.episodeNumber;
+                        })
+                        .map(({ episodeNumber, season, ...episode }) => episode);
                 }
 
                 case "movie": {

@@ -536,7 +536,7 @@ class AnimePahe extends MProvider {
         summary: "Select your preferred audio language (Japanese or English).",
         valueIndex: 0, // Default to Japanese (or whichever you prefer)
         entries: ["Japanese", "English"],
-        entryValues: ["jpn", "eng"],
+        entryValues: ["jpn", "Eng"],
       ),
     ];
   }

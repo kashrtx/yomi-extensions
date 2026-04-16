@@ -102,8 +102,16 @@ class AnimePahe extends MProvider {
     final epUrl = "$baseUrl/api?m=release&id=$session&sort=episode_desc&page=1";
     final resEp = (await client.get(Uri.parse(epUrl), headers: headers)).body;
     final episodes = await recursivePages(epUrl, resEp, session);
-
-    anime.chapters = episodes;
+    final mappedTitles = await fetchEpisodeTitlesFromAniZip(anime.name);
+    anime.chapters = formatEpisodeNames(
+      episodes,
+      mappedTitles: mappedTitles,
+      useSeasonRelativeNumbering: getPreferenceValue(
+        source.id,
+        "season_relative_episode_numbering",
+      ),
+      useEpisodeTitles: getPreferenceValue(source.id, "show_episode_titles"),
+    );
     return anime;
   }
 
@@ -382,6 +390,101 @@ class AnimePahe extends MProvider {
     return videos;
   }
 
+  List<MChapter> formatEpisodeNames(
+    List<MChapter> episodes, {
+    required Map<int, String> mappedTitles,
+    required bool useSeasonRelativeNumbering,
+    required bool useEpisodeTitles,
+  }) {
+    final episodeRegex = RegExp(r"Episode\s+(\d+(?:\.\d+)?)");
+    final parsedNumbers =
+        episodes
+            .map((episode) => episodeRegex.firstMatch(episode.name)?.group(1))
+            .whereType<String>()
+            .map((number) => double.tryParse(number))
+            .whereType<double>()
+            .toList();
+    final minEpisodeNumber = parsedNumbers.isEmpty ? 1.0 : parsedNumbers.reduce(min);
+
+    for (final episode in episodes) {
+      final match = episodeRegex.firstMatch(episode.name);
+      final rawEpisodeNumber = double.tryParse(match?.group(1) ?? "");
+      if (rawEpisodeNumber == null) {
+        continue;
+      }
+
+      final displayEpisodeNumber =
+          useSeasonRelativeNumbering
+              ? (rawEpisodeNumber - minEpisodeNumber + 1)
+              : rawEpisodeNumber;
+      final wholeDisplayEpisode = displayEpisodeNumber.floor();
+      final formattedEpisodeNumber =
+          displayEpisodeNumber == wholeDisplayEpisode
+              ? wholeDisplayEpisode.toString()
+              : displayEpisodeNumber.toString();
+
+      final title =
+          useEpisodeTitles ? (mappedTitles[wholeDisplayEpisode] ?? "") : "";
+      episode.name =
+          title.isEmpty
+              ? "Episode $formattedEpisodeNumber"
+              : "Episode $formattedEpisodeNumber : $title";
+    }
+    return episodes;
+  }
+
+  Future<Map<int, String>> fetchEpisodeTitlesFromAniZip(String animeName) async {
+    if (!getPreferenceValue(source.id, "show_episode_titles")) {
+      return {};
+    }
+    try {
+      final query = '''
+      query (\$search: String) {
+        Media(search: \$search, type: ANIME) {
+          id
+        }
+      }
+      ''';
+      final anilistResponse = await client.post(
+        Uri.parse("https://graphql.anilist.co"),
+        body: {"query": query, "variables": {"search": animeName}},
+      );
+      final anilistId =
+          json.decode(anilistResponse.body)?["data"]?["Media"]?["id"]?.toString();
+      if (anilistId == null || anilistId.isEmpty) {
+        return {};
+      }
+
+      final aniZipResponse = await client.get(
+        Uri.parse("https://api.ani.zip/anime/$anilistId"),
+      );
+      final episodesMap =
+          (json.decode(aniZipResponse.body)?["episodes"] as Map?) ?? {};
+      final titles = <int, String>{};
+
+      episodesMap.forEach((episodeNumber, episodeData) {
+        final parsedEpisode = int.tryParse(episodeNumber.toString());
+        if (parsedEpisode == null) return;
+        final titleMap = (episodeData["title"] as Map?) ?? {};
+        final title =
+            titleMap["en"]?.toString().trim().isNotEmpty == true
+                ? titleMap["en"].toString().trim()
+                : titleMap["x-jat"]?.toString().trim().isNotEmpty == true
+                ? titleMap["x-jat"].toString().trim()
+                : titleMap["ja"]?.toString().trim().isNotEmpty == true
+                ? titleMap["ja"].toString().trim()
+                : "";
+        if (title.isNotEmpty) {
+          titles[parsedEpisode] = title;
+        }
+      });
+
+      return titles;
+    } catch (_) {
+      return {};
+    }
+  }
+
   @override
   List<dynamic> getSourcePreferences() {
     return [
@@ -403,6 +506,20 @@ class AnimePahe extends MProvider {
         title: "Use HLS links",
         summary: "Enable this if you are having Cloudflare issues.",
         value: true,
+      ),
+      SwitchPreferenceCompat(
+        key: "season_relative_episode_numbering",
+        title: "Use season-relative numbering",
+        summary:
+            "Display episodes starting from 1 for the current AnimePahe entry.",
+        value: false,
+      ),
+      SwitchPreferenceCompat(
+        key: "show_episode_titles",
+        title: "Show episode titles (AniZip)",
+        summary:
+            "Fetch and show episode titles using AniList/AniZip metadata when available.",
+        value: false,
       ),
       ListPreference(
         key: "preferred_quality",

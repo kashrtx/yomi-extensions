@@ -187,6 +187,9 @@ class AnimePahe extends MProvider {
       final kwikLink = btn.attr("data-src");
       final quality = btn.text;
       final paheWinLink = downloadLinks[i].attr("href");
+      final kwikUri = Uri.tryParse(kwikLink);
+      final kwikReferer =
+          kwikUri != null ? "${kwikUri.scheme}://${kwikUri.host}/" : "";
 
       if (getPreferenceValue(source.id, "preffered_link_type")) {
         final noRedirectClient = Client(
@@ -200,7 +203,10 @@ class AnimePahe extends MProvider {
             "https://${substringAfterLast(getMapValue(json.encode(kwikHeaders), "location"), "https://")}";
         final reskwik = (await client.get(
           Uri.parse(kwikUrl),
-          headers: {"Referer": "https://kwik.cx/"},
+          headers: {
+            "Referer":
+                "${Uri.parse(kwikUrl).scheme}://${Uri.parse(kwikUrl).host}/",
+          },
         ));
         final matches = RegExp(
           r'\("(\S+)",\d+,"(\S+)",(\d+),(\d+)',
@@ -254,7 +260,8 @@ class AnimePahe extends MProvider {
         video
           ..url = location
           ..originalUrl = location
-          ..quality = quality;
+          ..quality = quality
+          ..headers = {"Referer": kwikReferer};
         videos.add(video);
       } else {
         final ress = (await client.get(
@@ -287,7 +294,7 @@ class AnimePahe extends MProvider {
           ..url = videoUrl
           ..originalUrl = videoUrl
           ..quality = quality
-          ..headers = {"referer": "https://kwik.cx"};
+          ..headers = {"Referer": kwikReferer};
         videos.add(video);
       }
     }
@@ -395,7 +402,7 @@ class AnimePahe extends MProvider {
         key: "preffered_link_type",
         title: "Use HLS links",
         summary: "Enable this if you are having Cloudflare issues.",
-        value: false,
+        value: true,
       ),
       ListPreference(
         key: "preferred_quality",

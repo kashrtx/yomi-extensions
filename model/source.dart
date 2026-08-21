@@ -116,6 +116,12 @@ class Source {
   }
 }
 
-const branchName = "/tree/main";
+// Used to build raw.githubusercontent.com URLs, which take the bare branch
+// name: raw.githubusercontent.com/<owner>/<repo>/main/<path>.
+// This was "/tree/main" (the github.com HTML path form), which produced
+// ".../yomi-extensions//tree/main/dart/..." and 404'd for every source, so
+// running the generator would have broken every sourceCodeUrl and iconUrl in
+// the committed indexes.
+const branchName = "main";
 
 enum ItemType { manga, anime, novel }

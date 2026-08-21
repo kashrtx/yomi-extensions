@@ -2,40 +2,43 @@ import '../../../../../model/source.dart';
 
 Source get animepaheSource => _animepaheSource;
 
-// 0.1.0 - Cloudflare + current-markup overhaul (Aug 2026):
-//   * bind the HTTP client to the source so the app's cf_clearance cookie is
-//     actually attached to requests (was a bare `Client()`)
-//   * hasCloudflare: true so the app runs its WebView challenge solver
-//   * drop the stale hardcoded DDoS-Guard cookie header that was clobbering
-//     cf_clearance on every request
-//   * default domain -> www.animepahe.pw, animepahe.com as backup, with
-//     automatic failover across the officially listed domains
-//   * rewrite detail-page parsing: the site moved every info label inside
-//     <strong> and renamed "Studio:" to "Studios:", so the old xpaths for
-//     status/studio/synonyms matched nothing, and the genre xpath read
-//     <li>/text() instead of <li>/<a>/text()
-//   * audio: read data-audio properly and support jpn/eng/chi/kor, not just
-//     an (also miscased) sub/dub guess
-//   * readable errors instead of a bare FormatException on challenge pages
+// 0.1.2 - rebuilt from the 0.0.84 baseline. The 0.1.0/0.1.1 mirror-failover
+// chain and retry loop are gone: the app's Cloudflare bypass blocks the
+// calling thread in a WebView while it solves, and this file is called once
+// per episode page, so multiplying requests stacked into a frozen UI that
+// Android killed as an ANR. Request count is now BELOW the original (4 vs 7).
 //
-// 0.1.1 - fix repeating Cloudflare prompt introduced by 0.1.0:
-//   * a challenge no longer fails over to another domain. Each animepahe
-//     domain is its own Cloudflare zone with its own cf_clearance, so walking
-//     the mirror list produced one prompt per host and never reused the
-//     clearance that had just been granted. Now retries the same host once.
-//   * mirror fallback defaults OFF and only covers unreachable hosts
-//   * stop sending Origin on same-origin GETs and Cache-Control/Pragma
-//     no-cache - both are bot signals that invite a challenge
-//   * a plain 403/503/429 is no longer misreported as a challenge
-const _animepaheVersion = "0.1.1";
+// Cloudflare handling follows the cloudflare_bypass package (which is itself a
+// port of Kotatsu's implementation). The package can't be imported here -
+// extensions are interpreted source with no pub dependencies - but its logic
+// is portable, and it flagged a real mistake: X-Requested-With is on its
+// blocked-header list for CF bypass, and an earlier revision of this file
+// added it.
+//
+// Changes vs 0.0.84:
+//   * Client(source), not Client() - a bare client has no source cookie jar,
+//     so cf_clearance was never sent
+//   * dropped the hardcoded '__ddg1_=;__ddg2_=;' cookie header, which set
+//     empty DDoS-Guard cookies AND replaced the whole Cookie header
+//   * browser header set per CommonHeadersInterceptor; no X-Requested-With,
+//     no Sec-CH-UA client hints
+//   * CloudFlareHelper-style detection: only 403/503 counts, and a blocked IP
+//     is reported differently from a solvable challenge
+//   * default domain www.animepahe.pw (backup animepahe.com); pref key bumped
+//     so the new default applies to existing installs
+//   * detail page: labels moved into <strong>, "Studio:" -> "Studios:",
+//     genres are in <li><a> - all three matched nothing before
+//   * audio: jpn/eng/chi/kor from data-audio
+//   * kwik: `if (tries > 19)` threw even on a successful final-attempt 302
+//   * search: URL-encoded query, l=8 cap removed
+const _animepaheVersion = "0.1.2";
 const _animepaheSourceCodeUrl =
     "https://raw.githubusercontent.com/kashrtx/yomi-extensions/$branchName/dart/anime/src/en/animepahe/animepahe.dart";
 Source _animepaheSource = Source(
   name: "AnimePahe",
-  // Domain history: www.animepahe.ru -> animepahe.si -> animepahe.com -> .pw
-  // The site's own header banner lists exactly three legitimate domains:
-  // animepahe.pw, animepahe.com, animepahe.org. Assets come from i.animepahe.pw.
-  baseUrl: "https://www.animepahe.pw", // current, as of Aug 2026
+  // Site banner lists exactly three legit domains: .pw, .com, .org.
+  // Assets are served from i.animepahe.pw.
+  baseUrl: "https://www.animepahe.pw",
   lang: "en",
   typeSource: "single",
   iconUrl:
@@ -43,14 +46,17 @@ Source _animepaheSource = Source(
   sourceCodeUrl: _animepaheSourceCodeUrl,
   version: _animepaheVersion,
   itemType: ItemType.anime,
-  // The site sits behind a Cloudflare managed challenge. This flag is what
-  // tells the app to solve it in a WebView and reuse the cf_clearance cookie;
-  // without it the extension only ever sees challenge HTML.
-  hasCloudflare: true,
+  // FALSE on purpose - back to the original value. Setting this true is what
+  // produced the repeating challenge prompt, and the app's blocking WebView
+  // solve is what turned that into a freeze. With it false the extension still
+  // uses any cf_clearance already in the cookie jar, so clearing the challenge
+  // once by hand in the WebView is enough, with no prompt and no blocking.
+  hasCloudflare: false,
   notes:
-      "Cloudflare-protected. If content fails to load, open the source in the "
-      "app's WebView once to clear the challenge. Default domain is "
+      "If content does not load, open this source in the app's WebView (globe "
+      "icon) once and wait for the real site to appear - that stores the "
+      "Cloudflare cookie for the whole app. Default domain is "
       "www.animepahe.pw; switch to animepahe.com in settings if it is down. "
-      "Some titles carry Chinese or Korean audio as well as Japanese and "
-      "English - set 'Preferred audio' in the source settings.",
+      "Some titles have Chinese or Korean audio as well as Japanese and "
+      "English; set 'Preferred audio'.",
 );

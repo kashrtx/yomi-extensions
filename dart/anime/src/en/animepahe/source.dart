@@ -17,7 +17,17 @@ Source get animepaheSource => _animepaheSource;
 //   * audio: read data-audio properly and support jpn/eng/chi/kor, not just
 //     an (also miscased) sub/dub guess
 //   * readable errors instead of a bare FormatException on challenge pages
-const _animepaheVersion = "0.1.0";
+//
+// 0.1.1 - fix repeating Cloudflare prompt introduced by 0.1.0:
+//   * a challenge no longer fails over to another domain. Each animepahe
+//     domain is its own Cloudflare zone with its own cf_clearance, so walking
+//     the mirror list produced one prompt per host and never reused the
+//     clearance that had just been granted. Now retries the same host once.
+//   * mirror fallback defaults OFF and only covers unreachable hosts
+//   * stop sending Origin on same-origin GETs and Cache-Control/Pragma
+//     no-cache - both are bot signals that invite a challenge
+//   * a plain 403/503/429 is no longer misreported as a challenge
+const _animepaheVersion = "0.1.1";
 const _animepaheSourceCodeUrl =
     "https://raw.githubusercontent.com/kashrtx/yomi-extensions/$branchName/dart/anime/src/en/animepahe/animepahe.dart";
 Source _animepaheSource = Source(

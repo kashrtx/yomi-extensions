@@ -276,14 +276,14 @@
     "hasCloudflare": true,
     "sourceCodeUrl": "https://raw.githubusercontent.com/kashrtx/yomi-extensions/main/dart/anime/src/en/animepahe/animepahe.dart",
     "apiUrl": "",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "isManga": false,
     "itemType": 1,
     "isFullData": false,
     "appMinVerReq": "0.5.0",
     "additionalParams": "",
     "sourceCodeLanguage": 0,
-    "notes": "Cloudflare-protected. If content fails to load, open the source in the app's WebView once to clear the challenge. Default domain is www.animepahe.pw; switch to animepahe.com in settings if it is down. Some titles carry Chinese or Korean audio as well as Japanese and English - set 'Preferred audio' in the source settings."
+    "notes": "Cloudflare-protected. If the challenge prompt appears, let the WebView finish until the real site shows, then retry. Keep 'Automatic mirror fallback' off unless a domain is unreachable - each domain needs its own challenge solved. Some titles carry Chinese or Korean audio as well as Japanese and English; set 'Preferred audio' in settings."
   },
   {
     "name": "AnimeWorld India",

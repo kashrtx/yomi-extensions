@@ -112,15 +112,17 @@ class AnimePahe extends MProvider {
   }
 
   Map<String, String> _baseHeaders(String referer) {
-    Map<String, String> h = {
-      "Accept-Language": "en-US,en;q=0.9",
-      "Cache-Control": "no-cache",
-      "Pragma": "no-cache",
-    };
+    Map<String, String> h = {"Accept-Language": "en-US,en;q=0.9"};
     if (referer.isNotEmpty) {
       h["Referer"] = "$referer/";
-      h["Origin"] = referer;
     }
+    // Deliberately absent:
+    //   Origin - browsers do NOT send this on same-origin GETs. Sending it
+    //     makes an ordinary page load look like a cross-site XHR, which is
+    //     one of the cheapest ways to talk yourself into a challenge.
+    //   Cache-Control / Pragma: no-cache - browsers don't send these on
+    //     normal navigation either, so they read as automation.
+    // Both were in the previous revision of this file and are gone on purpose.
     final ua = _pref(uaKey);
     if (ua.isNotEmpty) {
       h["User-Agent"] = ua;
@@ -155,7 +157,7 @@ class AnimePahe extends MProvider {
   // Domains to try, active one first.
   List<String> _domainChain() {
     List<String> chain = [baseUrl];
-    if (_prefBool(mirrorKey, true)) {
+    if (_prefBool(mirrorKey, false)) {
       for (var domain in knownDomains) {
         final normalised = _trimSlash(domain);
         if (!chain.contains(normalised)) {
@@ -166,19 +168,30 @@ class AnimePahe extends MProvider {
     return chain;
   }
 
+  // Only a real interstitial counts. The previous revision returned true for
+  // any 403/503/429, which meant an ordinary rate-limit or a genuinely
+  // forbidden path was reported as "solve the Cloudflare challenge" and kicked
+  // off a pointless WebView prompt.
   bool _looksLikeChallenge(int code, String body) {
-    if (code == 403 || code == 503 || code == 429) {
-      return true;
-    }
     final b = body.toLowerCase();
-    return b.contains("just a moment") ||
+    final hasMarker = b.contains("just a moment") ||
         b.contains("cdn-cgi/challenge-platform") ||
         b.contains("cf-browser-verification") ||
         b.contains("cf_chl_opt") ||
-        b.contains("attention required") ||
+        b.contains("cf-please-wait") ||
         b.contains("enable javascript and cookies to continue") ||
         b.contains("checking your browser") ||
         b.contains("ddos-guard");
+    if (hasMarker) {
+      return true;
+    }
+    // A bodyless 403/503 from Cloudflare is still most likely a challenge, but
+    // an empty body is the only case where we have to guess.
+    return (code == 403 || code == 503) && b.trim().isEmpty;
+  }
+
+  bool _isRateLimited(int code) {
+    return code == 429;
   }
 
   bool _looksLikeJson(String body) {
@@ -190,87 +203,95 @@ class AnimePahe extends MProvider {
   }
 
   String _challengeMessage(String domain) {
-    return "AnimePahe is behind a Cloudflare challenge on $domain.\n\n"
-        "Open this source in the app's WebView (the globe icon on the browse "
-        "screen), let the check finish once, then come back and retry. If it "
-        "keeps looping, switch 'Preferred domain' in the source settings to "
-        "animepahe.com.";
+    return "Cloudflare challenge not cleared for $domain.\n\n"
+        "Open this source in the app's WebView (globe icon on the browse "
+        "screen), wait until the actual site appears, then close it and retry. "
+        "If the WebView keeps reloading without ever showing the site, "
+        "Cloudflare is not accepting this device or IP - try mobile data or a "
+        "different network.";
   }
 
-  // Fetches a path, walking the mirror list until one returns real JSON.
-  // Distinguishes "blocked by Cloudflare" from "wrong domain" so the error
-  // shown in the app is actionable instead of a bare FormatException.
+  // Fetch a path, with ONE hard rule: a Cloudflare challenge never causes a
+  // hop to a different domain.
+  //
+  // The previous revision walked the whole mirror list on any failure,
+  // challenge included. animepahe.pw, .com and .org are separate Cloudflare
+  // zones, so each has its own independent cf_clearance cookie. Walking the
+  // chain meant: get challenged on host A, the app opens a WebView and clears
+  // host A, we immediately ask host B, get challenged again, clear B, ask C...
+  // Four hosts, four prompts, and the one host that just got cleared is never
+  // retried. That is the "popup that doesn't do anything" - it was working
+  // fine, we just kept throwing the result away.
+  //
+  // Now: on a challenge we retry the SAME host once (the app solves the
+  // challenge in between, so the retry carries valid clearance) and then stop.
+  // Other domains are only tried for connection-level failures, where the host
+  // genuinely cannot answer.
   Future<dynamic> _getJson(String path) async {
-    final chain = _domainChain();
-    String lastError = "";
-    bool sawChallenge = false;
-    String challengeDomain = "";
-
-    for (var domain in chain) {
-      try {
-        final res = await client.get(
-          Uri.parse("$domain$path"),
-          headers: _apiHeaders(domain),
-        );
-        final body = res.body;
-        if (_looksLikeChallenge(res.statusCode, body)) {
-          sawChallenge = true;
-          if (challengeDomain.isEmpty) {
-            challengeDomain = domain;
-          }
-          continue;
-        }
-        if (!_looksLikeJson(body)) {
-          lastError = "$domain returned a non-JSON response.";
-          continue;
-        }
-        return json.decode(body);
-      } catch (e) {
-        lastError = "$domain failed: $e";
-      }
-    }
-
-    if (sawChallenge) {
-      throw (_challengeMessage(challengeDomain));
-    }
-    throw ("Could not reach AnimePahe on any known domain.\n\n"
-        "Tried: ${chain.join(", ")}\n$lastError");
+    return await _fetch(path, true);
   }
 
-  // Same failover logic, but for HTML pages.
   Future<String> _getHtml(String path) async {
+    return await _fetch(path, false);
+  }
+
+  Future<dynamic> _fetch(String path, bool wantJson) async {
     final chain = _domainChain();
     String lastError = "";
-    bool sawChallenge = false;
-    String challengeDomain = "";
 
     for (var domain in chain) {
-      try {
-        final res = await client.get(
-          Uri.parse("$domain$path"),
-          headers: _pageHeaders(),
-        );
-        final body = res.body;
-        if (_looksLikeChallenge(res.statusCode, body)) {
-          sawChallenge = true;
-          if (challengeDomain.isEmpty) {
-            challengeDomain = domain;
+      // Two attempts per host: the second exists so that clearance obtained
+      // during the first attempt actually gets used.
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          final res = await client.get(
+            Uri.parse("$domain$path"),
+            headers: wantJson ? _apiHeaders(domain) : _pageHeaders(),
+          );
+          final body = res.body;
+
+          if (_looksLikeChallenge(res.statusCode, body)) {
+            if (attempt == 0) {
+              continue; // retry this same host, not the next one
+            }
+            // Still challenged after a retry. Surface it instead of dragging
+            // the user through a prompt for every remaining mirror.
+            throw (_challengeMessage(domain));
           }
-          continue;
+
+          if (_isRateLimited(res.statusCode)) {
+            throw ("AnimePahe is rate-limiting this device (HTTP 429). "
+                "Wait a minute or two and try again.");
+          }
+
+          if (wantJson) {
+            if (!_looksLikeJson(body)) {
+              lastError = "$domain returned a non-JSON response "
+                  "(HTTP ${res.statusCode}).";
+              break; // try the next domain
+            }
+            return json.decode(body);
+          }
+
+          if (body.trim().isEmpty) {
+            lastError = "$domain returned an empty page.";
+            break;
+          }
+          return body;
+        } catch (e) {
+          // A challenge or rate-limit message is a final answer - don't
+          // swallow it and keep hammering other hosts.
+          final msg = "$e";
+          if (msg.contains("Cloudflare challenge") ||
+              msg.contains("rate-limiting")) {
+            throw (msg);
+          }
+          lastError = "$domain failed: $msg";
+          break; // connection-level problem: this host is genuinely unusable
         }
-        if (body.trim().isEmpty) {
-          lastError = "$domain returned an empty page.";
-          continue;
-        }
-        return body;
-      } catch (e) {
-        lastError = "$domain failed: $e";
       }
     }
 
-    if (sawChallenge) {
-      throw (_challengeMessage(challengeDomain));
-    }
     throw ("Could not load $path from AnimePahe.\n\n"
         "Tried: ${chain.join(", ")}\n$lastError");
   }
@@ -537,7 +558,9 @@ class AnimePahe extends MProvider {
         source,
         json.encode({"followRedirects": false, "useDartHttpClient": true}),
       );
-      for (var domain in _domainChain()) {
+      // Active domain only. Looping every mirror here was a second source of
+      // repeat Cloudflare prompts, for a lookup that is only a fallback anyway.
+      for (var domain in [baseUrl]) {
         final res = await noRedirect.get(
           Uri.parse("$domain/a/$animeId"),
           headers: _pageHeaders(),
@@ -989,9 +1012,10 @@ class AnimePahe extends MProvider {
         key: mirrorKey,
         title: "Automatic mirror fallback",
         summary:
-            "If the preferred domain fails, silently retry the request on the "
-            "other known AnimePahe domains.",
-        value: true,
+            "Off by default. Only retries other domains when one cannot be "
+            "reached at all - never on a Cloudflare challenge, because each "
+            "domain needs its own separate challenge to be solved.",
+        value: false,
       ),
       EditTextPreference(
         key: overrideKey,

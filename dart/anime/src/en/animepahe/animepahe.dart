@@ -14,10 +14,10 @@ class AnimePahe extends MProvider {
   @override
   String get baseUrl {
     final v = getPreferenceValue(source.id, "preferred_domain_v2");
-    if (v == null || "$v".trim().isEmpty) {
+    if (v == null || v.toString().trim().isEmpty) {
       return "https://www.animepahe.pw";
     }
-    return "$v";
+    return v.toString();
   }
 
   // Header policy taken from cloudflare_bypass's CommonHeadersInterceptor +
@@ -44,11 +44,6 @@ class AnimePahe extends MProvider {
     'Upgrade-Insecure-Requests': '1',
   };
 
-  // Protection states, mirroring CloudFlareHelper.
-  static const int protectionNone = 0;
-  static const int protectionCaptcha = 1;
-  static const int protectionBlocked = 2;
-
   // Ported from CloudFlareHelper.checkResponseForProtection.
   //
   // The important detail is the early return: anything that is not 403/503 is
@@ -57,23 +52,26 @@ class AnimePahe extends MProvider {
   // as a challenge, so ordinary errors and rate limits were misreported as
   // "solve the Cloudflare challenge".
   int _checkProtection(int statusCode, String body) {
+    // 0 = none, 1 = challenge, 2 = blocked. Plain ints rather than named
+    // static consts: `static const int` has no precedent in this repo and the
+    // interpreter here only demonstrably supports `static const String`.
     if (statusCode != 403 && statusCode != 503) {
-      return protectionNone;
+      return 0;
     }
     if (body.isEmpty) {
-      return protectionNone;
+      return 0;
     }
     final b = body.toLowerCase();
 
     if (b.contains('ddos-guard') ||
         b.contains('/.well-known/ddos-guard/') ||
         b.contains('check.ddos-guard.net')) {
-      return protectionCaptcha;
+      return 1;
     }
     // Blocked is distinct from challenged: no amount of solving fixes a
     // banned IP, so it deserves a different message.
     if (b.contains('data-translate="blocked_why_headline"')) {
-      return protectionBlocked;
+      return 2;
     }
     if (b.contains('challenge-error-title') ||
         b.contains('challenge-error-text') ||
@@ -81,12 +79,12 @@ class AnimePahe extends MProvider {
         b.contains('cf-turnstile') ||
         b.contains('challenges.cloudflare.com') ||
         b.contains('cdn-cgi/challenge-platform')) {
-      return protectionCaptcha;
+      return 1;
     }
     if (b.contains('just a moment') && b.contains('enable javascript')) {
-      return protectionCaptcha;
+      return 1;
     }
-    return protectionNone;
+    return 0;
   }
 
   // Single request. No retry loop and no mirror walking: the app's Cloudflare
@@ -99,20 +97,14 @@ class AnimePahe extends MProvider {
     final body = res.body;
     final state = _checkProtection(res.statusCode, body);
 
-    if (state == protectionBlocked) {
-      throw ("Cloudflare has blocked this IP address for $baseUrl.\n\n"
-          "Solving a challenge will not help. Switch network (mobile data or "
-          "a VPN), or try animepahe.com via 'Preferred domain' in settings.");
+    if (state == 2) {
+      throw ("Cloudflare has blocked this IP. Solving a challenge will not help - switch network (mobile data or VPN), or pick another domain in the source settings.");
     }
-    if (state == protectionCaptcha) {
-      throw ("Cloudflare challenge on $baseUrl.\n\n"
-          "Open this source in the app's WebView (globe icon), wait until the "
-          "real site appears, then close it and retry. That stores the "
-          "cf_clearance cookie for the whole app.");
+    if (state == 1) {
+      throw ("Cloudflare challenge. Open this source in the app's WebView (globe icon), wait for the real site to appear, then close it and retry.");
     }
     if (res.statusCode == 429) {
-      throw ("AnimePahe is rate-limiting this device (HTTP 429). Wait a "
-          "minute or two before retrying.");
+      throw ("AnimePahe is rate-limiting this device. Wait a minute, then retry.");
     }
     return body;
   }
@@ -121,8 +113,7 @@ class AnimePahe extends MProvider {
     final body = await _get(path);
     final t = body.trim();
     if (!t.startsWith("{") && !t.startsWith("[")) {
-      throw ("$baseUrl returned a non-JSON response. If this keeps happening "
-          "the domain has moved - check 'Preferred domain' in settings.");
+      throw ("Got a non-JSON response. If this persists the domain has moved - check 'Preferred domain' in the source settings.");
     }
     return json.decode(body);
   }
@@ -178,7 +169,7 @@ class AnimePahe extends MProvider {
   @override
   Future<MPages> search(String query, int page, FilterList filterList) async {
     final jsonResult = await _getJson(
-      "/api?m=search&q=${Uri.encodeQueryComponent(query.trim())}",
+      "/api?m=search&q=${Uri.encodeComponent(query.trim())}",
     );
     List<MManga> animeList = [];
     for (var item in jsonResult["data"]) {
@@ -276,7 +267,7 @@ class AnimePahe extends MProvider {
 
     if (location == '$baseUrl/anime') {
       final res = await _get(
-        "/api?m=search&q=${Uri.encodeQueryComponent(title)}",
+        "/api?m=search&q=${Uri.encodeComponent(title)}",
       );
       return substringBefore(
         substringAfter(
